@@ -1,5 +1,4 @@
 .env
 node_modules
 test-ledger
-address.txt
 test-ledger
