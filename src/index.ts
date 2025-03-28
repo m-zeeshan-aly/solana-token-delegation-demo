@@ -73,37 +73,6 @@ function loadKeypair(publicKeyEnv: string, secretKeyEnv: string): Keypair {
 }
 
 // Improved balance check with proper error handling
-async function getReliableBalance(pubkey: PublicKey): Promise<number> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
-    try {
-      const balance = await connection.getBalance(pubkey, "confirmed");
-      console.log(`${pubkey.toBase58()} balance: ${balance / LAMPORTS_PER_SOL} SOL (attempt ${attempt})`);
-      
-      if (balance > 0) {
-        return balance;
-      }
-
-      if (attempt < RETRY_ATTEMPTS) {
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-      }
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.warn(`Balance check attempt ${attempt} failed: ${lastError.message}`);
-      
-      if (attempt < RETRY_ATTEMPTS) {
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
-      }
-    }
-  }
-
-  throw lastError || new Error(`Failed to get balance after ${RETRY_ATTEMPTS} attempts`);
-}
-
-
-
-// Improved balance check with proper error handling
 async function getBalance(pubkey: PublicKey): Promise<number> {
   let lastError: Error | null = null;
 
@@ -136,7 +105,7 @@ async function getBalance(pubkey: PublicKey): Promise<number> {
 async function verifyBalances(wallets: Keypair[]): Promise<void> {
   console.log("\nVerifying wallet balances...");
   
-  const balancePromises = wallets.map(wallet => getReliableBalance(wallet.publicKey));
+  const balancePromises = wallets.map(wallet => getBalance(wallet.publicKey));
   const balances = await Promise.all(balancePromises);
 
   const minRequiredLamports = MIN_REQUIRED_SOL * LAMPORTS_PER_SOL;
@@ -402,6 +371,12 @@ async function setupTestTokens(w1: Keypair, w2: Keypair, w3: Keypair, w4: Keypai
   console.log(`- W3 approved W4 for ${DELEGATE_AMOUNT} of its own token ${token3.toBase58()}. Tx: ${approveTx3}`);
   console.log(`- W3 approved W4 for ${DELEGATE_AMOUNT} of W1's token ${token1.toBase58()}. Tx: ${approveTx1w3}`);
   console.log(`- W3 approved W4 for ${DELEGATE_AMOUNT} of W2's Token A ${token2a.toBase58()}. Tx: ${approveTx2aw3}`);
+
+
+  // After approving W4 as delegate, add a 3-minute delay before transferring
+  // console.log("\n⏳ Waiting 3 minutes to test delegate access persistence...");
+  // await new Promise(resolve => setTimeout(resolve, 180_000)); // 180,000 ms = 3 minutes
+
 
   // Step 5: W4 transfers tokens from all wallets to itself
   console.log("\n🔄 W4 executing transfers using delegated authority...");
